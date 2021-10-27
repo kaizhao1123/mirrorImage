@@ -81,13 +81,14 @@ def GetLengthAndWidth(seedID, size, num, view, angle):
     print("{} side target(pixel): length:{} width:{}".format(view, targetLengthPixel, targetWidthPixel))
     print("{} side mirror(pixel): length:{} width:{}".format(view, mirrorLengthPixel, mirrorWidthPixel))
 
-    ratio1 = 5.1054 / 117.785
-    ratio2 = 5.1054 / 109.5
+    ratio = 5.1054 / 110 # 117.785
+    # ratio2 = 5.1054 / 109 # 109.5
+    r = targetLengthPixel / mirrorLengthPixel
 
-    targetLength = targetLengthPixel * ratio1
-    targetWidth = targetWidthPixel * ratio1
-    mirrorLength = mirrorLengthPixel * ratio2
-    mirrorWidth = mirrorWidthPixel * ratio2
+    targetLength = targetLengthPixel * ratio / r
+    targetWidth = targetWidthPixel * ratio / r
+    mirrorLength = mirrorLengthPixel * ratio
+    mirrorWidth = mirrorWidthPixel * ratio
 
     print("{} side target: length:{} mm, width:{} mm".format(view, targetLength, targetWidth))
     print("{} side mirror: length:{} mm, width:{} mm".format(view, mirrorLength, mirrorWidth))

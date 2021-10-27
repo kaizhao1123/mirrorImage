@@ -1,6 +1,6 @@
 import cv2 as cv
 import numpy as np
-import time
+import math
 
 delta = 5
 
@@ -200,6 +200,7 @@ def procView(HSVlower, HSVupper, img, num_slice, ratio, display, auto=False):
 
     contours, hierarchy = cv.findContours(thresh, 1, 2)
 
+    count = 0
     result = []
     twoConts = []
     for cont in contours:
@@ -214,6 +215,10 @@ def procView(HSVlower, HSVupper, img, num_slice, ratio, display, auto=False):
         cv.drawContours(img, [box], 0, (0, 0, 255), 2)
         twoConts.append(cont)
         result.append(rect[1])
+
+        count += 1
+        cv.putText(img, str(count), (math.ceil(rect[0][0]), math.ceil(rect[0][1])), cv.FONT_HERSHEY_COMPLEX,
+                   0.6, (255, 0, 0), 1)
 
     x, y, w, h = cv.boundingRect(twoConts[0])
     box_mirror = np.array([(x, y), (x, y + h), (x + w, y), (x + w, y + h)])
@@ -230,13 +235,22 @@ def procView(HSVlower, HSVupper, img, num_slice, ratio, display, auto=False):
             cv.drawContours(img, [twoConts[1]], 0, (255, 0, 0), 2)
             drawLine(img, box_target, twoConts[1], num_slice)
 
-    length_m = result[0][1] / ratio
-    width = result[0][0] / ratio
+    length_m_pixel = result[0][1]
+    width_pixel = result[0][0]
+    if length_m_pixel < width_pixel:
+        width_pixel, length_m_pixel = length_m_pixel, width_pixel
+    length_m = length_m_pixel / ratio
+    width = width_pixel / ratio
     rectArray_m = slicingRect(box_mirror, twoConts[0], num_slice)
 
     if len(twoConts) > 1:
-        length_t = result[1][1] / ratio
-        height = result[1][0] / ratio
+        length_t = result[1][1]
+        height = result[1][0]
+        if length_t < height:
+            height, length_t = length_t, height
+        r = length_t / length_m_pixel  # length_t / length_m
+        length_t = length_t / ratio / r
+        height = height / ratio / r
         rectArray_t = slicingRect(box_target, twoConts[1], num_slice)
     else:
         length_t = length_m
@@ -257,7 +271,7 @@ def displayResult(length_t, length_m, width, height, volume, img, imgnameForSavi
     width = width * r
     length = "Length is  %.2f" % length_t + " mm"
     width = "Width is  %.2f" % width + " mm"
-    height = "Thickness is  %.2f" % height + " mm"
+    height = "Height is  %.2f" % height + " mm"
     volume = "Volume is  %.2f" % volume + " mm^3"
 
     cv.putText(img, length, (10, 60), 0, 1, (255, 255, 255), 2, cv.LINE_AA)

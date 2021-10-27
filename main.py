@@ -34,6 +34,7 @@ def main():
             img = cv.imread(path)
             n = len(filename)
             prefixName = filename[0:n - 5]
+            viewName = filename[8:9]
 
             # set images name for saving
             imgnameForSaving = (directory + '/' + prefixName + 'M-' + str(numSlice) + '.jpg')
@@ -42,8 +43,17 @@ def main():
             display = True
             model = "ellip"  # rect
 
+            # if viewName == 'L':
+            #     ratio = 22.525169428    # target : 115/5.1054
+            # else:
+            #     ratio = 23.308653582  # target: 119/5.1054
+            #     # ratio = 21.937556313    # mirror: 112/5.1054
+
             # pixel and mm ratio
-            ratio = 23.954372623574  # 36.9496855346
+            # ratio = 23.954372623574  # 36.9496855346
+            ratio = 21.5458142359 # 110/5.1054
+            # ratio = 23.308653582    # R
+            # ratio = 22.525169428    # L
 
             # set the HSV range for main view for wheat
             HSV_lower = np.array([0, 0, vint])
@@ -73,7 +83,7 @@ def main():
 
     df = pd.DataFrame(csv_data,
                       columns=['Img Name', 'Length (mm)', 'Width (mm)', 'Height (mm)','Volume (mm\u00b3)'])
-    df.to_excel("output.xlsx", sheet_name=csv_folder_name, index=False)
+    #df.to_excel("output.xlsx", sheet_name=csv_folder_name, index=False)
     return
 
 
