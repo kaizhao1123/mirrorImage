@@ -4,7 +4,7 @@
 
 import cv2 as cv
 import numpy as np
-from volume import procVolume, displayResult, getVolume
+from volume import procVolume, displayResult, getVolume, normalizeImage
 import os
 import sys
 import time
@@ -51,7 +51,7 @@ def main():
 
             # pixel and mm ratio
             # ratio = 23.954372623574  # 36.9496855346
-            ratio = 21.5458142359 # 110/5.1054
+            ratio = 110/5.1054  # 21.5458142359 #
             # ratio = 23.308653582    # R
             # ratio = 22.525169428    # L
 
@@ -59,6 +59,7 @@ def main():
             HSV_lower = np.array([0, 0, vint])
             HSV_upper = np.array([255, 255, 255])
 
+            normalizeImage(img, HSV_lower, HSV_upper)
             length_target, length_mirror, width, height, rectArray_target, rectArray_mirror = procVolume(ratio,
                                                                                                          HSV_lower,
                                                                                                          HSV_upper,
