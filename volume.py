@@ -183,6 +183,24 @@ def drawLine(image, box, contour, n):
     return
 
 
+def newDrawLine(contour, img):
+    Y_list = getAllpoint(contour)
+    for i in range(0, len(Y_list), 3):
+
+        pointX = Y_list[i][0]
+        pointY_top = Y_list[i][1]
+        pointY_bottom = Y_list[i][2]
+
+        # left line
+        cv.line(img, (pointX, pointY_top), (pointX, pointY_bottom), (0, 0, 255), 1)
+
+
+
+
+
+
+
+
 def suitForSlicing(list, midPoint):
     hasUpper = False
     hasLower = False
@@ -263,15 +281,46 @@ def slicingRect(box, contour, n):
     return rect_arr
 
 
+def findNextUpper(dict, index, mid):
+    while True:
+        if index in dict:
+            vList = dict.get(index)
+            if suitForSlicing(vList, mid):
+                if vList[0] < vList[-1]:
+                    return index, vList[0]
+                else:
+                    return index, vList[-1]
+            else:
+                if vList[0] <= mid:
+                    return index, vList[0]
+                else:
+                    index += 1
+        else:
+            index += 1
 
-def newSlicingRect(box, contour):
-    # start_time = time.time()
-    rect_list = []
+def findNextLower(dict, index, mid):
+    while True:
+        if index in dict:
+            vList = dict.get(index)
+            if suitForSlicing(vList, mid):
+                if vList[0] < vList[-1]:
+                    return index, vList[-1]
+                else:
+                    return index, vList[0]
+            else:
+                if vList[0] >= mid:
+                    return index, vList[0]
+                else:
+                    index += 1
+        else:
+            index += 1
 
-    contour = sorted(contour, key=lambda tup: tup[0][0])    # sort the contour, from left point to right point
+
+def getAllpoint(contour):
+    contour = sorted(contour, key=lambda tup: tup[0][0])  # sort the contour, from left point to right point
 
     # initial a dictionary
-    contour_dict = {}   # create dictionary to record the contour point with the same X value, X: [Y1, Y2}...
+    contour_dict = {}  # create dictionary to record the contour point with the same X value, X: [Y1, Y2}...
     k = contour[0][0][0]
     v = []
     v.append(contour[0][0][1])
@@ -287,12 +336,20 @@ def newSlicingRect(box, contour):
             newValue = []
             newValue.append(value)
             contour_dict[key] = newValue
+    print(contour_dict)
 
+    # find the left, right point, and mid_y
     left_point, right_point = newGetLeftRight(contour_dict)
     y_mid = getMidPoint(left_point, right_point, left_point[0])
     startPoint_X = left_point[0]
     endPoint_X = right_point[0]
+    print(y_mid)
+    ####
+    # create a list, to record each pixel's Y-value, which used to slice. for example: (X, topY, bottomY)
+    ####
+    Y_list = []
 
+    # add the first point (the most left) into list
     previousPoint_X = startPoint_X
     previousPoint_listValue = contour_dict.get(previousPoint_X)
     if len(previousPoint_listValue) > 1:
@@ -301,47 +358,88 @@ def newSlicingRect(box, contour):
     else:
         previousTop = y_mid
         previousBottom = y_mid
+    Y_list.append((startPoint_X, previousTop, previousBottom))
 
+    # add others into list
     current_X = startPoint_X + 1
     while current_X <= endPoint_X:
         if current_X in contour_dict:
-            current_listValue = contour_dict.get(current_X)
+            current_listValue = contour_dict.get(current_X)  # list all y-values from all point with the same x-value
             current_mid = getMidPoint(left_point, right_point, current_X)
-            rec_width = 1  #current_X - previousPoint_X # in fact, it is a fixed value : 1 (pixel)
-            if suitForSlicing(current_listValue, current_mid):  # or current_X == endPoint_X:
+            topY = findTop(current_listValue, current_mid)
+            bottomY = findBottom(current_listValue, current_mid)
 
-                rec_height = math.fabs(current_listValue[-1] - current_listValue[0])
-
-                #rec_height = current_listValue[0]
-
-                # ##########
-                # diff = rec_height - previousPoint_height
-                # previousPoint_height = rec_height
-                # rec_height = rec_height - (diff / 2)
-
-                # #############
-
-                rect_list.append((rec_width, rec_height))
-                previousPoint_X = current_X
-                previousTop = findTop(current_listValue, current_mid)
-                previousBottom = findBottom(current_listValue, current_mid)
-            else:
-                top = findTop(current_listValue, current_mid)
-                bottom = findBottom(current_listValue, current_mid)
-                if top != -1:
-                    rec_height = previousBottom - top
-                elif bottom != -1:
-                    rec_height = bottom - previousTop
-                elif top == bottom:
-                    rec_height = previousBottom - previousTop
-                rect_list.append((rec_width, rec_height))
+            if not suitForSlicing(current_listValue, current_mid):  # or current_X == endPoint_X:
+                if topY == bottomY:  # the most right point
+                    print("right point")
+                elif topY != -1:
+                    bottomY = previousBottom
+                elif bottomY != -1:
+                    topY = previousTop
+            Y_list.append((current_X, topY, bottomY))
+            previousTop = topY
+            previousBottom = bottomY
 
         else:
-            rect_list.append(rect_list[-1])
+            Y_list.append((current_X, previousTop, previousBottom))
         current_X += 1
-    print(rect_list)
-    print("%%%%%%%%%%%%%%%%")
-    return rect_list
+
+    print(Y_list)
+    print("%%%% old %%%%%%")
+
+    # update the list
+    size = len(Y_list)
+    for i in range(0, size):
+        k = Y_list[i][0]
+        mid = getMidPoint(left_point, right_point, k)
+        if k in contour_dict:
+            vList = contour_dict.get(k)
+            if suitForSlicing(vList, mid):
+                continue
+            else:
+                originalTopY = findTop(vList, mid)
+                originalBottomY = findBottom(vList, mid)
+                # nextX, upper, lower = findNext(contour_dict, k+1, mid)
+
+                if originalTopY != -1:
+                    nextX, lower = findNextLower(contour_dict, k+1, mid)
+                    temp = list(Y_list[i])
+                    # temp[2] = math.floor((lower - Y_list[i - 1][2]) / 2 + Y_list[i - 1][2])
+                    temp[2] = math.floor((lower - Y_list[i - 1][2]) / (nextX - k) + Y_list[i - 1][2])
+                    temp = tuple(temp)
+                    Y_list[i] = temp
+                elif originalBottomY != -1:
+                    nextX, upper = findNextUpper(contour_dict, k + 1, mid)
+                    temp = list(Y_list[i])
+                    # temp[1] = math.floor((upper - Y_list[i - 1][1]) / 2 + Y_list[i - 1][1])
+                    temp[1] = math.floor((upper - Y_list[i - 1][1]) / (nextX - k) + Y_list[i - 1][1])
+                    temp = tuple(temp)
+                    Y_list[i] = temp
+        else:
+            nextX_u, upper = findNextUpper(contour_dict, k+1, mid)
+            nextX_l, lower = findNextLower(contour_dict, k+1, mid)
+            temp = list(Y_list[i])
+            # temp[1] = math.floor((upper - Y_list[i - 1][1]) / 2 + Y_list[i - 1][1])
+            # temp[2] = math.floor((lower - Y_list[i - 1][2]) / 2 + Y_list[i - 1][2])
+            temp[1] = math.floor((upper - Y_list[i - 1][1]) / (nextX_u - k) + Y_list[i - 1][1])
+            temp[2] = math.floor((lower - Y_list[i - 1][2]) / (nextX_l - k) + Y_list[i - 1][2])
+            temp = tuple(temp)
+            Y_list[i] = temp
+
+    print(Y_list)
+    print("%%%% new %%%%%%")
+    return Y_list
+
+
+def newSlicingRect(contour):
+    Y_list = getAllpoint(contour)
+    rect_array = []
+    for i in range(0, len(Y_list)-1):
+        a = (Y_list[i][1] + Y_list[i+1][1]) / 2
+        b = (Y_list[i][2] + Y_list[i+1][2]) / 2
+        rect_array.append((1, math.floor(b - a)))
+    print(rect_array)
+    return rect_array
 
 ########################################################################
 # calculate volume using slicing rectangle box
@@ -350,7 +448,7 @@ def getVolume(length_t, length_m, rectArr_t, rectArr_m, ratio, model):
     # scale factor length_target / length_mirror
     # convert unit to mm by divid the ratio
     # V = pi * A * B * h
-    r = float(length_t / length_m)
+    r = length_t / length_m
     rectArr_m = np.array(rectArr_m) * r
 
     if model == "ellip":
@@ -419,11 +517,14 @@ def procView(HSVlower, HSVupper, img, num_slice, ratio, display, auto=False):
         box_target = box_mirror
 
     if display:
-        cv.drawContours(img, [twoConts[0]], 0, (255, 0, 0), 2)
-        drawLine(img, box_mirror, twoConts[0], num_slice)
+
+        # drawLine(img, box_mirror, twoConts[0], num_slice)
+        newDrawLine(twoConts[0], img)
+        cv.drawContours(img, [twoConts[0]], 0, (255, 0, 0), 1)
         if len(twoConts) > 1:
-            cv.drawContours(img, [twoConts[1]], 0, (255, 0, 0), 2)
-            drawLine(img, box_target, twoConts[1], num_slice)
+            # drawLine(img, box_target, twoConts[1], num_slice)
+            newDrawLine(twoConts[1], img)
+            cv.drawContours(img, [twoConts[1]], 0, (255, 0, 0), 1)
 
     length_m_pixel = result[0][1]
     width_pixel = result[0][0]
@@ -432,11 +533,11 @@ def procView(HSVlower, HSVupper, img, num_slice, ratio, display, auto=False):
     length_m = length_m_pixel / ratio
     width = width_pixel / ratio
     # rectArray_m = slicingRect(box_mirror, twoConts[0], num_slice)
-    rectArray_m = newSlicingRect(box_mirror, twoConts[0])
+    rectArray_m = newSlicingRect(twoConts[0])
 
     #######################
-    # newSlicingRect(box, twoConts[0])
-    # newSlicingRect(box, twoConts[1])
+    # newSlicingRect(twoConts[0])
+    # newSlicingRect(twoConts[1])
     ########################
 
     if len(twoConts) > 1:
@@ -448,7 +549,7 @@ def procView(HSVlower, HSVupper, img, num_slice, ratio, display, auto=False):
         length_t = length_t / ratio / r
         height = height / ratio / r
         # rectArray_t = slicingRect(box_target, twoConts[1], num_slice)
-        rectArray_t = newSlicingRect(box_target, twoConts[1])
+        rectArray_t = newSlicingRect(twoConts[1])
     else:
         length_t = length_m
         height = width

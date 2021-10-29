@@ -18,7 +18,7 @@ def main():
     csv_folder_name = ''
 
     n = 50
-    vint = 50
+    vint = 45  # 135
 
     if (len(sys.argv) > 1):
         numSlice = int(sys.argv[1])
@@ -50,7 +50,7 @@ def main():
             #     # ratio = 21.937556313    # mirror: 112/5.1054
 
             # pixel and mm ratio
-            # ratio = 23.954372623574  # 36.9496855346
+            # ratio = 23.954372623574
             ratio = 110/5.1054  # 21.5458142359 #
             # ratio = 23.308653582    # R
             # ratio = 22.525169428    # L
