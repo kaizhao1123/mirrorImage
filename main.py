@@ -13,31 +13,27 @@ import pandas as pd
 
 def main():
     # directory = 'pic/SG-Sept23-33-2'
-    directory = 'pic/'
+    directory = 'pic'
     csv_data = []
     csv_folder_name = ''
 
-    n = 50
-    vint = 45  # 135
+    numSlice = 50
+    vint = 145  # 142/135/45
 
-    if (len(sys.argv) > 1):
-        numSlice = int(sys.argv[1])
-    else:
-        numSlice = n
     ########################################################################
     # Main function flow and input image
     ########################################################################
     # get the main view image of the same seed
     for filename in os.listdir(directory):
-        if filename.endswith("M.bmp"):
+        if filename.endswith("r.bmp"):
             path = (directory + '/' + filename)
             img = cv.imread(path)
             n = len(filename)
-            prefixName = filename[0:n - 5]
-            viewName = filename[8:9]
+            prefixName = filename[0]
+            # viewName = filename[8:9]
 
             # set images name for saving
-            imgnameForSaving = (directory + '/' + prefixName + 'M-' + str(numSlice) + '.jpg')
+            imgnameForSaving = (directory + '/' + prefixName + '-result' + '.jpg')
 
             save = True
             display = True
@@ -50,19 +46,16 @@ def main():
             #     # ratio = 21.937556313    # mirror: 112/5.1054
 
             # pixel and mm ratio
-            # ratio = 23.954372623574
-            ratio = 110/5.1054  # 21.5458142359 #
-            # ratio = 23.308653582    # R
-            # ratio = 22.525169428    # L
+            ratio = 95/3.945  # 94.5/3.945
+            # ratio = 110/5.1054  # 21.5458142359 #
 
             # set the HSV range for main view for wheat
             HSV_lower = np.array([0, 0, vint])
             HSV_upper = np.array([255, 255, 255])
 
-            normalizeImage(img, HSV_lower, HSV_upper)
+            normalizeImage(img, vint)
             length_target, length_mirror, width, height, rectArray_target, rectArray_mirror = procVolume(ratio,
-                                                                                                         HSV_lower,
-                                                                                                         HSV_upper,
+                                                                                                         vint,
                                                                                                          img,
                                                                                                          numSlice,
                                                                                                          display)
@@ -74,17 +67,17 @@ def main():
                 displayResult(length_target, length_mirror, width, height, volume_target, img, imgnameForSaving, save,
                               display)
     # save the result to excel file
-    if csv_folder_name == '':
-        csv_folder_name = imgnameForSaving.split("/")[1]
-    csv_imgname = imgnameForSaving.split("/")[2]
-
-    csv_data.append(
-        [csv_imgname, float("{:.4f}".format(length_target)), float("{:.4f}".format(width)),
-         float("{:.4f}".format(height)), float("{:.4f}".format(volume_target))])
-
-    df = pd.DataFrame(csv_data,
-                      columns=['Img Name', 'Length (mm)', 'Width (mm)', 'Height (mm)','Volume (mm\u00b3)'])
-    #df.to_excel("output.xlsx", sheet_name=csv_folder_name, index=False)
+    # if csv_folder_name == '':
+    #     csv_folder_name = imgnameForSaving.split("/")[1]
+    # csv_imgname = imgnameForSaving.split("/")[2]
+    #
+    # csv_data.append(
+    #     [csv_imgname, float("{:.4f}".format(length_target)), float("{:.4f}".format(width)),
+    #      float("{:.4f}".format(height)), float("{:.4f}".format(volume_target))])
+    #
+    # df = pd.DataFrame(csv_data,
+    #                   columns=['Img Name', 'Length (mm)', 'Width (mm)', 'Height (mm)','Volume (mm\u00b3)'])
+    # df.to_excel("output.xlsx", sheet_name=csv_folder_name, index=False)
     return
 
 

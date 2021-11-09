@@ -5,22 +5,15 @@ import math
 delta = 5
 
 
-# decrease the target to the same size with mirror
-def normalizeImage(img, HSVlower, HSVupper):
+# decrease the mirror to the same size with target
+def normalizeImage(img, vint):
 
-    # convert the image to the hsv data format
-    hsv = cv.cvtColor(img, cv.COLOR_BGR2HSV)
-    hsv = cv.GaussianBlur(hsv, (3, 3), 10)
-    hsv = cv.dilate(hsv, (3, 3))
-    # Threshold the HSV image to get only brown colors
-    mask = cv.inRange(hsv, HSVlower, HSVupper)
-    ret, thresh = cv.threshold(mask, 127, 255, 0)
-    # ret, thresh = cv.threshold(mask, 127, 255, cv.THRESH_BINARY)
-    # else:
-    #     mask = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
-    #     ret, thresh = cv.threshold(mask, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
-
-    contours, hierarchy = cv.findContours(thresh, 1, 2)
+    gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)  # change to gray image
+    # Global threshold segmentation,  to binary image. (Otsu)
+    res, dst = cv.threshold(gray, vint, 255, 0)  # 0,255 cv2.THRESH_OTSU
+    element = cv.getStructuringElement(cv.MORPH_CROSS, (3, 3))  # Morphological denoising
+    dst = cv.morphologyEx(dst, cv.MORPH_OPEN, element)  # Open operation denoising
+    contours, hierarchy = cv.findContours(dst, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)  # Contour detection function
 
     count = 0
     result = []
@@ -32,29 +25,31 @@ def normalizeImage(img, HSVlower, HSVupper):
         rect = cv.minAreaRect(cont)
 
         # draw the min area rect
-        box = cv.boxPoints(rect)
-        box = np.int0(box)
-        #cv.drawContours(img, [box], 0, (0, 0, 255), 2)  # red
+        # box = cv.boxPoints(rect)
+        # box = np.int0(box)
+        # cv.drawContours(img, [box], 0, (0, 0, 255), 2)  # red
         twoConts.append(cont)
         result.append(rect[1])
 
-        #count += 1
-        #cv.putText(img, str(count), (math.ceil(rect[0][0]), math.ceil(rect[0][1])), cv.FONT_HERSHEY_COMPLEX,
-        #           0.6, (255, 0, 0), 1)  # blue
-    x, y, w, h = cv.boundingRect(twoConts[0])   # mirror
-    x_t, y_t, w_t, h_t = cv.boundingRect(twoConts[1])   # target
-    r = w_t / w
-    targetImg = img[y_t:y_t+h_t, x_t:x_t+w_t]
-    newW = w   # w_t / r
-    newH = math.ceil(h_t / r)
+        count += 1
+        cv.putText(img, str(count), (math.ceil(rect[0][0]), math.ceil(rect[0][1])), cv.FONT_HERSHEY_COMPLEX,
+                   0.6, (255, 0, 0), 1)  # blue
+    x, y, w, h = cv.boundingRect(twoConts[0])   # target
+    x_m, y_m, w_m, h_m = cv.boundingRect(twoConts[1])   # mirror
+    r = w_m / w
+    mirrorImg = img[y_m:y_m+h_m, x_m:x_m+w_m]
+    newW = w   # w_m / r
+    newH = math.ceil(h_m / r)
     dim = (newW, newH)
-    newTarget = cv.resize(targetImg, dim, interpolation=cv.INTER_AREA)
-    template = np.zeros([newH + 30, newW + 30, 3], dtype=np.uint8)
-    template[15: newH + 15, 15: newW + 15] = newTarget
+    newTarget = cv.resize(mirrorImg, dim, interpolation=cv.INTER_AREA)
+    edge = int(20)
+    halfEdge = int(edge / 2)
+    template = np.zeros([newH + edge, newW + edge, 3], dtype=np.uint8)
+    template[halfEdge: newH + halfEdge, halfEdge: newW + halfEdge] = newTarget
 
-    img[y_t-15: y_t+15 + newH, x-15: x+15 + newW] = template
-    # cv.imshow('View', img)
-    # cv.waitKey()
+    img[y_m-halfEdge: y_m+halfEdge + newH, x-halfEdge: x+halfEdge + newW] = template
+    cv.imshow('View', img)
+    cv.waitKey()
 
 
 
@@ -185,7 +180,7 @@ def drawLine(image, box, contour, n):
 
 def newDrawLine(contour, img):
     Y_list = getAllpoint(contour)
-    for i in range(0, len(Y_list), 3):
+    for i in range(0, len(Y_list), 2):
 
         pointX = Y_list[i][0]
         pointY_top = Y_list[i][1]
@@ -193,12 +188,6 @@ def newDrawLine(contour, img):
 
         # left line
         cv.line(img, (pointX, pointY_top), (pointX, pointY_bottom), (0, 0, 255), 1)
-
-
-
-
-
-
 
 
 def suitForSlicing(list, midPoint):
@@ -282,7 +271,7 @@ def slicingRect(box, contour, n):
 
 
 def findNextUpper(dict, index, mid):
-    while True:
+    while index <= list(dict)[-1]:
         if index in dict:
             vList = dict.get(index)
             if suitForSlicing(vList, mid):
@@ -297,9 +286,10 @@ def findNextUpper(dict, index, mid):
                     index += 1
         else:
             index += 1
+    return -1, -1
 
 def findNextLower(dict, index, mid):
-    while True:
+    while index <= list(dict)[-1]:
         if index in dict:
             vList = dict.get(index)
             if suitForSlicing(vList, mid):
@@ -314,6 +304,7 @@ def findNextLower(dict, index, mid):
                     index += 1
         else:
             index += 1
+    return -1, -1
 
 
 def getAllpoint(contour):
@@ -384,9 +375,6 @@ def getAllpoint(contour):
             Y_list.append((current_X, previousTop, previousBottom))
         current_X += 1
 
-    print(Y_list)
-    print("%%%% old %%%%%%")
-
     # update the list
     size = len(Y_list)
     for i in range(0, size):
@@ -399,19 +387,16 @@ def getAllpoint(contour):
             else:
                 originalTopY = findTop(vList, mid)
                 originalBottomY = findBottom(vList, mid)
-                # nextX, upper, lower = findNext(contour_dict, k+1, mid)
 
                 if originalTopY != -1:
                     nextX, lower = findNextLower(contour_dict, k+1, mid)
                     temp = list(Y_list[i])
-                    # temp[2] = math.floor((lower - Y_list[i - 1][2]) / 2 + Y_list[i - 1][2])
                     temp[2] = math.floor((lower - Y_list[i - 1][2]) / (nextX - k) + Y_list[i - 1][2])
                     temp = tuple(temp)
                     Y_list[i] = temp
                 elif originalBottomY != -1:
                     nextX, upper = findNextUpper(contour_dict, k + 1, mid)
                     temp = list(Y_list[i])
-                    # temp[1] = math.floor((upper - Y_list[i - 1][1]) / 2 + Y_list[i - 1][1])
                     temp[1] = math.floor((upper - Y_list[i - 1][1]) / (nextX - k) + Y_list[i - 1][1])
                     temp = tuple(temp)
                     Y_list[i] = temp
@@ -419,8 +404,6 @@ def getAllpoint(contour):
             nextX_u, upper = findNextUpper(contour_dict, k+1, mid)
             nextX_l, lower = findNextLower(contour_dict, k+1, mid)
             temp = list(Y_list[i])
-            # temp[1] = math.floor((upper - Y_list[i - 1][1]) / 2 + Y_list[i - 1][1])
-            # temp[2] = math.floor((lower - Y_list[i - 1][2]) / 2 + Y_list[i - 1][2])
             temp[1] = math.floor((upper - Y_list[i - 1][1]) / (nextX_u - k) + Y_list[i - 1][1])
             temp[2] = math.floor((lower - Y_list[i - 1][2]) / (nextX_l - k) + Y_list[i - 1][2])
             temp = tuple(temp)
@@ -470,23 +453,30 @@ def getVolume(length_t, length_m, rectArr_t, rectArr_m, ratio, model):
 ########################################################################
 # Main View
 ########################################################################
-def procView(HSVlower, HSVupper, img, num_slice, ratio, display, auto=False):
+def procView(vint, img, num_slice, ratio, display, auto=False):
 
-    if not auto:
-        # convert the image to the hsv data format
-        hsv = cv.cvtColor(img, cv.COLOR_BGR2HSV)
-        hsv = cv.GaussianBlur(hsv, (3, 3), 10)
-        hsv = cv.dilate(hsv, (3, 3))
-        # Threshold the HSV image to get only brown colors
-        mask = cv.inRange(hsv, HSVlower, HSVupper)
-        ret, thresh = cv.threshold(mask, 127, 255, 0)
-        # ret, thresh = cv.threshold(mask, 127, 255, cv.THRESH_BINARY)
-        print("auto")
-    else:
-        mask = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
-        ret, thresh = cv.threshold(mask, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
+    # if not auto:
+    #     # convert the image to the hsv data format
+    #     hsv = cv.cvtColor(img, cv.COLOR_BGR2HSV)
+    #     hsv = cv.GaussianBlur(hsv, (3, 3), 10)
+    #     hsv = cv.dilate(hsv, (3, 3))
+    #     # Threshold the HSV image to get only brown colors
+    #     mask = cv.inRange(hsv, HSVlower, HSVupper)
+    #     ret, thresh = cv.threshold(mask, 230, 255, 0)
+    #     # ret, thresh = cv.threshold(mask, 127, 255, cv.THRESH_BINARY)
+    #     print("auto")
+    # else:
+    #     mask = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
+    #     ret, thresh = cv.threshold(mask, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
+    #
+    # contours, hierarchy = cv.findContours(thresh, 1, 2)
 
-    contours, hierarchy = cv.findContours(thresh, 1, 2)
+    gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)  # change to gray image
+    # Global threshold segmentation,  to binary image. (Otsu)
+    res, dst = cv.threshold(gray, vint, 255, 0)  # 0,255 cv2.THRESH_OTSU
+    element = cv.getStructuringElement(cv.MORPH_CROSS, (3, 3))  # Morphological denoising
+    dst = cv.morphologyEx(dst, cv.MORPH_OPEN, element)  # Open operation denoising
+    contours, hierarchy = cv.findContours(dst, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)  # Contour detection function
 
     count = 0
     result = []
@@ -504,17 +494,17 @@ def procView(HSVlower, HSVupper, img, num_slice, ratio, display, auto=False):
         twoConts.append(cont)
         result.append(rect[1])
 
-        count += 1
-        cv.putText(img, str(count), (math.ceil(rect[0][0]), math.ceil(rect[0][1])), cv.FONT_HERSHEY_COMPLEX,
-                   0.6, (255, 0, 0), 1)  # blue
+        # count += 1
+        # cv.putText(img, str(count), (math.ceil(rect[0][0]), math.ceil(rect[0][1])), cv.FONT_HERSHEY_COMPLEX,
+        #            0.6, (255, 0, 0), 1)  # blue
 
     x, y, w, h = cv.boundingRect(twoConts[0])
-    box_mirror = np.array([(x, y), (x, y + h), (x + w, y), (x + w, y + h)])
-    if len(twoConts) > 1:
-        x, y, w, h = cv.boundingRect(twoConts[1])
-        box_target = np.array([(x, y), (x, y + h), (x + w, y), (x + w, y + h)])
-    else:
-        box_target = box_mirror
+    # box_mirror = np.array([(x, y), (x, y + h), (x + w, y), (x + w, y + h)])
+    # if len(twoConts) > 1:
+    #     x, y, w, h = cv.boundingRect(twoConts[1])
+    #     box_target = np.array([(x, y), (x, y + h), (x + w, y), (x + w, y + h)])
+    # else:
+    #     box_target = box_mirror
 
     if display:
 
@@ -526,14 +516,14 @@ def procView(HSVlower, HSVupper, img, num_slice, ratio, display, auto=False):
             newDrawLine(twoConts[1], img)
             cv.drawContours(img, [twoConts[1]], 0, (255, 0, 0), 1)
 
-    length_m_pixel = result[0][1]
-    width_pixel = result[0][0]
-    if length_m_pixel < width_pixel:
-        width_pixel, length_m_pixel = length_m_pixel, width_pixel
-    length_m = length_m_pixel / ratio
-    width = width_pixel / ratio
+    length_t_pixel = result[0][1]
+    height_pixel = result[0][0]
+    if length_t_pixel < height_pixel:
+        height_pixel, length_t_pixel = length_t_pixel, height_pixel
+    length_t = length_t_pixel / ratio
+    height = height_pixel / ratio
     # rectArray_m = slicingRect(box_mirror, twoConts[0], num_slice)
-    rectArray_m = newSlicingRect(twoConts[0])
+    rectArray_t = newSlicingRect(twoConts[0])
 
     #######################
     # newSlicingRect(twoConts[0])
@@ -541,21 +531,21 @@ def procView(HSVlower, HSVupper, img, num_slice, ratio, display, auto=False):
     ########################
 
     if len(twoConts) > 1:
-        length_t = result[1][1]
-        height = result[1][0]
-        if length_t < height:
-            height, length_t = length_t, height
-        r = length_t / length_m_pixel  # length_t / length_m
-        length_t = length_t / ratio / r
-        height = height / ratio / r
+        length_m = result[1][1]
+        width = result[1][0]
+        if length_m < width:
+            width, length_m = length_m, width
+        r = length_m / length_t_pixel  # length_m / length_t
+        length_m = length_m / ratio / r
+        width = width / ratio / r
         # rectArray_t = slicingRect(box_target, twoConts[1], num_slice)
-        rectArray_t = newSlicingRect(twoConts[1])
+        rectArray_m = newSlicingRect(twoConts[1])
     else:
-        length_t = length_m
-        height = width
-        rectArray_t = rectArray_m
+        length_m = length_t
+        width = height
+        rectArray_m = rectArray_t
 
-    return length_t, length_m, width, height, rectArray_t, rectArray_m, mask
+    return length_t, length_m, width, height, rectArray_t, rectArray_m
 
 
 ########################################################################
@@ -567,33 +557,42 @@ def displayResult(length_t, length_m, width, height, volume, img, imgnameForSavi
     r = float(length_t / length_m)  # the ratio of length_target / length_mirror
 
     width = width * r
-    length = "Length is  %.2f" % length_t + " mm"
-    width = "Width is  %.2f" % width + " mm"
-    height = "Height is  %.2f" % height + " mm"
-    volume = "Volume is  %.2f" % volume + " mm^3"
+    length = "Length is  %.3f" % length_t + " mm"
+    width = "Width is  %.3f" % width + " mm"
+    height = "Height is  %.3f" % height + " mm"
+    volume = "Volume is  %.3f" % volume + " mm^3"
 
-    cv.putText(img, length, (10, 60), 0, 1, (255, 255, 255), 2, cv.LINE_AA)
-    cv.putText(img, height, (10, 90), 0, 1, (255, 255, 255), 2, cv.LINE_AA)
-    cv.putText(img, volume, (10, 450), 0, 1, (255, 255, 255), 2, cv.LINE_AA)
+    cv.putText(img, length, (10, 60), 0, 0.5, (255, 255, 255), 2, cv.LINE_AA)
+    cv.putText(img, height, (10, 90), 0, 0.5, (255, 255, 255), 2, cv.LINE_AA)
+    cv.putText(img, volume, (10, 150), 0, 0.5, (255, 255, 255), 2, cv.LINE_AA)
 
-    cv.putText(img, width, (10, 120), 0, 1, (255, 255, 255), 2, cv.LINE_AA)
+    cv.putText(img, width, (10, 120), 0,0.5, (255, 255, 255), 2, cv.LINE_AA)
     if save:
         cv.imwrite(imgnameForSaving, img)
     if display:
         cv.imshow('View', img)
         cv.waitKey()
     return
+def newProcView(contour, img, ratio, display):
+
+    rect = cv.minAreaRect(contour)
+    length = math.floor(rect[1][0])
+    width = math.floor(rect[1][1])
+    length = length / ratio
+    width = width / ratio
+    if length < width:
+        width, length = length, width
+    if display:
+        drawLine(contour, img)
+        cv.drawContours(img, [contour], 0, (255, 0, 0), 1)
+    rectArray = slicingRect(contour)
+    return length, width, rectArray
 
 
-def procVolume(ratio, HSV_lower, HSV_upper, img, num_slice, display, auto=False):
+def procVolume(ratio, vint, img, num_slice, display, auto=False):
     # Calculate the length and width using procView function for side view
-    length_target, length_mirror, width, height, rectArray_target, rectArray_mirror, mask_target = procView(HSV_lower,
-                                                                                                            HSV_upper,
-                                                                                                            img,
-                                                                                                            num_slice,
-                                                                                                            ratio,
-                                                                                                            display,
-                                                                                                            auto)
+    length_target, length_mirror, width, height, rectArray_target, rectArray_mirror = procView(vint, img, num_slice,
+                                                                                               ratio, display, auto)
 
     return length_target, length_mirror, width, height, rectArray_target, rectArray_mirror
 
